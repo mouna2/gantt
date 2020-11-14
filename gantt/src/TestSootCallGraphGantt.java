@@ -19,7 +19,9 @@ import java.util.Map;
 import java.util.Properties;
 
 import soot.*;
+import soot.jimple.FieldRef;
 import soot.jimple.Stmt;
+import soot.jimple.internal.AbstractDefinitionStmt;
 import soot.jimple.spark.SparkTransformer;
 import soot.jimple.toolkits.callgraph.CHATransformer;
 import soot.jimple.toolkits.callgraph.CallGraph;
@@ -27,7 +29,7 @@ import soot.jimple.toolkits.callgraph.Targets;
 import soot.options.Options;
 import soot.util.Chain;
 
-public class TestSootCallGraph extends SceneTransformer {
+public class TestSootCallGraphGantt extends SceneTransformer {
 
 static LinkedList<String> excludeList;
 	
@@ -123,7 +125,7 @@ static LinkedList<String> excludeList;
 			Statement st4= conn.createStatement();
 
 		 String mypath="net.sourceforge.ganttproject"; 
-		 String directory= "C:\\Users\\mouna\\TraceWorkspace\\gantt\\bin"; 
+		 String directory= "C:\\Users\\mouna\\git\\gantt\\gantt\\bin"; 
 	    String javapath = System.getProperty("java.class.path");
 	    String jredir = System.getProperty("java.home")+"\\lib\\rt.jar";
 	    String javapath1 = System.getProperty("java.home");
@@ -133,7 +135,7 @@ static LinkedList<String> excludeList;
 	 
 	    Scene.v().setSootClassPath(path);
 	    System.out.println(path);
-	    TestSootCallGraph analysis = new TestSootCallGraph();
+	    TestSootCallGraphGantt analysis = new TestSootCallGraphGantt();
 	    PackManager.v().getPack("wjtp").add(new Transform("wjtp.TestSootCallGraph", analysis));
 		 
 		 
@@ -195,6 +197,8 @@ static LinkedList<String> excludeList;
 	    Scene.v().getActiveHierarchy(); 
 
 	    System.out.println("**********************************");
+	    List<String> fieldList = new ArrayList<String>(); 
+
 	    List<String> localList = new ArrayList<String>(); 
 	    try {
 	    	for ( SootClass myclass: Scene.v().getClasses()) {
@@ -250,36 +254,87 @@ static LinkedList<String> excludeList;
 			    			
 			    		}
 			    		if(body!=null) {
-			    			for(Local local: body.getLocals()) {
-			    				 String localclassid=null; 
+			    			
+			    			
+			    			 PatchingChain<Unit> units = body.getUnits();
+				    			
+			    			 for(Unit unit: units) {
+			    				 if(unit instanceof AbstractDefinitionStmt){
+			    					 AbstractDefinitionStmt myass = (AbstractDefinitionStmt) unit; 
+			    					ValueBox rightBox = myass.rightBox; 
+			    					ValueBox leftBox=myass.leftBox; 
+			    					System.out.println(unit);
+				    				 System.out.println("RIGHT ====> "+myass.rightBox);
+				    				 System.out.println("LEFT ====> "+myass.leftBox);
+				    				
+				    				
+				    				 if (leftBox.getValue() instanceof FieldRef) {
+				    					FieldRef field= (FieldRef) leftBox.getValue(); 
+				    					  System.out.println("WRITE  "+field.getFieldRef().name()+" TYPE===> "+field.getType()+" METHOD "+ mymethod.getName()+" CLASS "+myclass.toString()); 
+				    					  System.out.println();
+				    						String fieldid=null; 
+				    						String fieldname=null; 
+				    						String query="SELECT * from fieldclasses where fieldname='"+field.getFieldRef().name()+
+				    								"'and fieldtype='"+field.getType()+"'and classname='"+myclass.toString()+"'"; 
+				    						System.out.println(query);
+				    					  ResultSet res3 = st3.executeQuery(query); 
+				    						while(res3.next()){
+				    							  fieldid=res3.getString("id"); 
+				    							  fieldname=res3.getString("fieldname"); 
+				    							  System.out.println(fieldid);
+				    							  System.out.println(fieldname);
+				    							  
+				    							  String fieldItem=fieldid+"-"+classid+"-"+methodid+"0"; 
 
-			    				if(!local.getType().toString().contains("java") && !local.getType().toString().contains("int")
-			    						&& !local.getType().toString().contains("boolean") && !local.getType().toString().contains("char")
-			    						&& !local.getType().toString().contains("com") &&  !local.getType().toString().contains("polyglot") ) {
-			    					System.out.println("local "+local.getName()+" type "+local.getType());
-			    					ResultSet locals = st3.executeQuery("SELECT * from classes where classname='"+local.getType()+"'"); 
-									while(locals.next()){
-										  localclassid= locals.getString("id"); 
-									}
-									System.out.println(classname);
-									String insert = localclassid +"','" +local.getType()+"','" +myclass+"','" +classid+"','" +methodname+"','" +methodid; 
-									System.out.println(insert);
-									String mylocal=localclassid+"-"+classid+"-"+methodid; 
-									if(!localList.contains(mylocal)) {
-										if(localclassid!=null && classid!=null && methodid!=null) {
-											String statement= "INSERT INTO `sootfieldmethods`(`fieldtypeclassid`, `fieldtypeclassname`, `ownerclassname`, `ownerclassid`, "
-													+ "`ownermethodname`, `ownermethodid`)"
-													+ "VALUES ('"+localclassid +"','" +local.getType().toString()+"','" +myclass.toString()+"','" +classid+"','" +methodname+"','" +methodid+"')"; 
-											System.out.println(statement);
-											st.executeUpdate(statement);
-											localList.add(mylocal); 
+				    								if(fieldid!=null && fieldname!=null && methodid!=null && !fieldList.contains(fieldItem)) {
+														String statement= "INSERT INTO `sootfieldmethods`(`fieldclassid`, `fieldname`, `ownerclassname`, `ownerclassid`, "
+																+ "`ownermethodname`, `ownermethodid`,`read`)"
+																+ "VALUES ('"+fieldid +"','" +fieldname+"','" +myclass.toString()+"','" +classid+"','" +methodname+"','" +methodid+"','0')"; 
+														System.out.println(statement);
+														st.executeUpdate(statement);
+														fieldList.add(fieldItem); 
 
-										}
-									}
-									
-						    		System.out.println("local "+local.getName()+" type "+local.getType());
+													}
 
-			    				}
+				    				   		   }	
+				    					  
+				    					 } else if (rightBox.getValue() instanceof FieldRef) {
+						    					FieldRef field= (FieldRef) rightBox.getValue(); 
+					    					  System.out.println("READ  "+field.getFieldRef().name()+" TYPE===> "+field.getType()+" METHOD "+ mymethod.getName()+" CLASS "+myclass.toString()); 
+					    					  System.out.println();
+					    					  
+					    						String fieldid=null; 
+					    						String fieldname=null; 
+					    						String query="SELECT * from fieldclasses where fieldname='"+field.getFieldRef().name()+
+					    								"'and fieldtype='"+field.getType()+"'and classname='"+myclass.toString()+"'"; 
+					    						System.out.println(query);
+					    					  ResultSet res2 = st2.executeQuery(query); 
+					    						while(res2.next()){
+					    							  fieldid=res2.getString("id"); 
+					    							  fieldname=res2.getString("fieldname"); 
+					    							  System.out.println(fieldid);
+					    							  System.out.println(fieldname);
+					    							  
+					    							  String fieldItem=fieldid+"-"+classid+"-"+methodid+"1"; 
+					    								if(fieldid!=null && fieldname!=null && methodid!=null && !fieldList.contains(fieldItem)) {
+															String statement= "INSERT INTO `sootfieldmethods`(`fieldclassid`, `fieldname`, `ownerclassname`, `ownerclassid`, "
+																	+ "`ownermethodname`, `ownermethodid`,`read`)"
+																	+ "VALUES ('"+fieldid +"','" +fieldname+"','" +myclass.toString()+"','" +classid+"','" +methodname+"','" +methodid+"','1')"; 
+															System.out.println(statement);
+															st.executeUpdate(statement);
+															fieldList.add(fieldItem); 
+
+														}
+
+					    				   		   }	
+					    					  
+				    					 }
+				    				 System.out.println();
+				    			
+			    				 }	
+			    			
+
+				    		
 					    	}
 			    		}
 			   
